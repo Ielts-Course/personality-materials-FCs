@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>英汉词汇闪卡</title>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<style>
+    :root { --card-w: 88vw; --card-max-w: 520px; --card-h: 60vh; --card-max-h: 600px; --radius: 14px; --shadow: 0 8px 24px rgba(0,0,0,0.08); --brand: #0f766e; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC","Noto Sans SC","Microsoft YaHei", sans-serif; margin: 0; padding: 0; min-height: 100vh; background: #f7faf9; display: flex; flex-direction: column; align-items: center; }
+
+    .site-header { display:flex; align-items:center; gap:14px; margin:20px 16px 6px; flex-direction: row; }
+    .site-header img { height:72px; width:auto; }
+    .site-title { font-weight: 800; font-size: 1.25rem; color:#0b3c39; text-align: center; }
+    .site-instruction { margin: 0 16px 14px; color:#334; text-align:center; }
+
+    .card-container { position: relative; width: var(--card-w); max-width: var(--card-max-w); height: var(--card-h); max-height: var(--card-max-h); perspective: 1000px; margin-bottom: 12px; }
+    .card { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .6s ease; z-index:1; }
+    .front, .back { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--radius); background: #fff; border:1px solid #e8ebe9; box-shadow: var(--shadow); padding: 28px; backface-visibility: hidden; }
+    .back { transform: rotateY(180deg); }
+    .card.flipped { transform: rotateY(180deg); }
+    body.overlay-open #card { pointer-events: none; }
+
+    .word { font-size: clamp(2.2rem, 8vw, 3.2rem); font-weight: 800; color:#0b3c39; text-align:center; line-height:1.05; }
+    .phon { margin-top: 10px; font-size: clamp(1rem, 3.5vw, 1.4rem); color:#6b7c7a; font-weight: 500; letter-spacing:.3px; }
+    .translation-zh { font-size: clamp(1.4rem, 4.5vw, 1.8rem); color:#0b3c39; font-weight: 700; text-align:center; }
+    .example { margin-top: 14px; width:100%; max-width: 520px; text-align:center; }
+    .ex-en { font-size: 1.05rem; color:#1f2937; margin-bottom: 6px; text-align:center; }
+    .ex-zh { font-size: 1.05rem; color:#374151; text-align:center; }
+    .highlight { font-weight: 800; color: var(--brand); }
+
+    .audio-front, .audio-back { margin-top: 16px; font-size: 1.4rem; cursor:pointer; user-select:none; }
+    .buttons-container { display:flex; gap:10px; width: var(--card-w); max-width: var(--card-max-w); margin-bottom: 16px; }
+    .btn { flex:1; padding: 12px; border:none; border-radius: 10px; font-size:1rem; cursor:pointer; box-shadow: 0 2px 4px rgba(0,0,0,.06); }
+    .know { background:#c7f9cc; }
+    .practice { background:#ffddd2; }
+
+    .nav { display:flex; justify-content:space-between; width:var(--card-w); max-width: var(--card-max-w); margin-bottom: 16px; }
+    .nav button { font-size:2rem; background:none; border:none; cursor:pointer; }
+
+    .hidden { display:none; }
+
+    #congratsMsg { position:absolute; inset:0; background:#fff; border-radius:var(--radius); box-shadow: var(--shadow); padding: 20px; z-index:9999; }
+    #congratsMsg:not(.hidden) { display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 10px; }
+    #congratsMsg input { padding:10px; border:1px solid #e5e7eb; border-radius:10px; width: 100%; max-width: 320px; }
+    #congratsActions { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+    #saveImgBtn { background:#dbeafe; }
+    #reviewAll { background:#e5e7eb; }
+
+    footer { margin-top:auto; font-size:.85rem; color:#6b7280; text-align:center; padding: 18px 10px; width:100%; }
+
+    @media print {
+      body { background: #fff; }
+      .site-header, .site-instruction, .card-container, .buttons-container, .nav, #reviewControls, footer, #congratsMsg { display: none !important; }
+      #pdfReport { display: block !important; }
+    }
+    #pdfReport { display:none; padding: 24px; max-width: 980px; margin: 0 auto; font-size: 14px; color:#111827; }
+    #pdfReport h1 { font-size: 1.5rem; margin: 0 0 8px; }
+    #pdfReport h2 { font-size: 1.2rem; margin: 18px 0 8px; }
+    #pdfReport table { width:100%; border-collapse: collapse; margin-top: 8px; }
+    #pdfReport th, #pdfReport td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+    #pdfReport .muted { color:#6b7280; }
+    #pdfReport .score-row { font-size: 1.3rem; font-weight: 800; color: var(--brand); }
+  
+.site-title { text-align: left; }
+
+.site-header-content { display: flex; flex-direction: column; }
+.site-title { text-align: left; }
+</style>
+</head>
+<body>
+<div class="site-header">
+<img alt="BFSU Logo" src="LOGO.png"/>
+
+<div class="site-header-content"><div class="site-title" id="siteTitle">词汇闪卡</div></div></div><p class="site-instruction" id="siteInstr">点击卡片以翻转。点击音频图标🔊可收听单词或句子。</p>
+<div class="card-container">
+<div class="card" id="card">
+<div aria-label="翻转卡片" class="front" role="button">
+<div class="word" id="frontWord"></div>
+<div class="phon" id="frontPhon"></div>
+<button aria-label="播放单词音频" class="audio-front" id="audioFront" title="播放单词音频">🔊</button>
+</div>
+<div aria-label="翻转卡片" class="back" role="button">
+<div class="translation-zh" id="backTransZh"></div>
+<div class="example">
+<div class="ex-en" id="exEn"></div>
+<div class="ex-zh" id="exZh"></div>
+</div>
+<button aria-label="播放例句音频" class="audio-back" id="audioBack" title="播放例句音频">🔊</button>
+</div>
+</div>
+<div class="hidden" id="congratsMsg">
+<h2>太棒了！🎉</h2>
+<input id="studentId" placeholder="姓名 / 学号（可选）"/>
+<div class="muted" id="congratsSummary"></div>
+<div id="congratsActions">
+<button class="btn" id="saveImgBtn">保存为图片</button>
+<button class="btn" id="reviewAll">复习所有单词</button>
+</div>
+</div>
+</div>
+<div class="buttons-container">
+<button class="btn know" id="knowBtn">已掌握</button>
+<button class="btn practice" id="practiceBtn">需要练习</button>
+</div>
+<div class="nav">
+<button aria-label="上一张" id="prevBtn">←</button>
+<button aria-label="下一张" id="nextBtn">→</button>
+</div>
+<div class="hidden" id="reviewControls">
+<button class="btn" id="reviewPractice">复习“需要练习”</button>
+</div>
+<!-- 报告（用于导出图片） -->
+<section id="pdfReport">
+<h1>学习表现报告</h1>
+<div id="reportMeta"></div>
+<h2>摘要</h2>
+<table>
+<tbody id="summaryTable"></tbody>
+</table>
+<p class="muted">此报告由前端页面本地生成，可放心保存并发送给老师。</p>
+</section>
+<footer>©2025 Dr. Carlos Cardenas • 教育管理学博士</footer>
+<script>
+    // ====== 词表数据（动态） ======
+    const wordsAll = [
+  {"english":"Hopeful","phonetic":"/ˈhoʊp.fəl/","translation_zh":"充满希望的","example_en":"The hopeful student believed she would pass the exam.","example_zh":"那个充满希望的学生相信她会通过考试。"},
+  {"english":"Truthful","phonetic":"/ˈtruːθ.fəl/","translation_zh":"诚实的","example_en":"He is always truthful, even when the truth is hard to hear.","example_zh":"他总是很诚实，即使真相难以接受。"},
+  {"english":"Friendly","phonetic":"/ˈfrend.li/","translation_zh":"友好的","example_en":"The friendly teacher smiled at every student.","example_zh":"那位友好的老师对每个学生都微笑。"},
+  {"english":"Powerful","phonetic":"/ˈpaʊ.ər.fəl/","translation_zh":"强大的","example_en":"The powerful leader inspired his team to succeed.","example_zh":"那位强大的领导激励了他的团队取得成功。"},
+  {"english":"Jealous","phonetic":"/ˈdʒel.əs/","translation_zh":"嫉妒的","example_en":"She felt jealous when her friend got a new phone.","example_zh":"当她的朋友买了新手机时，她感到嫉妒。"},
+  {"english":"Happy","phonetic":"/ˈhæp.i/","translation_zh":"高兴的","example_en":"The children were happy to play in the park.","example_zh":"孩子们在公园里玩耍很高兴。"},
+  {"english":"Confident","phonetic":"/ˈkɒn.fɪ.dənt/","translation_zh":"自信的","example_en":"He felt confident about giving his speech.","example_zh":"他对发表演讲感到自信。"},
+  {"english":"Exciting","phonetic":"/ɪkˈsaɪ.tɪŋ/","translation_zh":"令人兴奋的","example_en":"It was an exciting football match.","example_zh":"那是一场令人兴奋的足球比赛。"},
+  {"english":"Loving","phonetic":"/ˈlʌv.ɪŋ/","translation_zh":"有爱的","example_en":"She gave her child a loving hug.","example_zh":"她给了孩子一个充满爱的拥抱。"},
+  {"english":"Creative","phonetic":"/kriˈeɪ.tɪv/","translation_zh":"有创造力的","example_en":"The creative artist painted a colorful picture.","example_zh":"那位有创造力的艺术家画了一幅色彩斑斓的画。"},
+  {"english":"Sad","phonetic":"/sæd/","translation_zh":"伤心的","example_en":"He felt sad after watching the movie.","example_zh":"看完那部电影后，他感到伤心。"},
+  
+  {"english":"Cotton","phonetic":"/ˈkɒt.ən/","translation_zh":"棉花","example_en":"This shirt is made of soft cotton.","example_zh":"这件衬衫是用柔软的棉布做的。"},
+  {"english":"Gold","phonetic":"/ɡoʊld/","translation_zh":"金","example_en":"She wore a gold necklace.","example_zh":"她戴了一条金项链。"},
+  {"english":"Silver","phonetic":"/ˈsɪl.vər/","translation_zh":"银","example_en":"His ring was made of silver.","example_zh":"他的戒指是银做的。"},
+  {"english":"Leather","phonetic":"/ˈleð.ər/","translation_zh":"皮革","example_en":"He bought a leather jacket.","example_zh":"他买了一件皮夹克。"},
+  {"english":"Plastic","phonetic":"/ˈplæs.tɪk/","translation_zh":"塑料","example_en":"The toy is made of plastic.","example_zh":"这个玩具是用塑料做的。"},
+  {"english":"Rubber","phonetic":"/ˈrʌb.ər/","translation_zh":"橡胶","example_en":"The boots are made of rubber.","example_zh":"这些靴子是用橡胶做的。"},
+  {"english":"Silk","phonetic":"/sɪlk/","translation_zh":"丝绸","example_en":"She wore a silk scarf.","example_zh":"她戴了一条丝绸围巾。"},
+  {"english":"Wool","phonetic":"/wʊl/","translation_zh":"羊毛","example_en":"The sweater is made of wool.","example_zh":"这件毛衣是羊毛做的。"},
+  
+  {"english":"Sweater","phonetic":"/ˈswet.ər/","translation_zh":"毛衣","example_en":"I wore a warm sweater in winter.","example_zh":"我在冬天穿了一件温暖的毛衣。"},
+  {"english":"Sneakers","phonetic":"/ˈsniː.kərz/","translation_zh":"运动鞋","example_en":"He bought new sneakers for running.","example_zh":"他买了双新运动鞋用于跑步。"},
+  {"english":"Backpack","phonetic":"/ˈbæk.pæk/","translation_zh":"背包","example_en":"She carried books in her backpack.","example_zh":"她在背包里装了书。"},
+  {"english":"Boots","phonetic":"/buːts/","translation_zh":"靴子","example_en":"The boots kept his feet dry in the rain.","example_zh":"靴子在雨天保持他的脚干燥。"},
+  {"english":"Bracelet","phonetic":"/ˈbreɪ.slət/","translation_zh":"手镯","example_en":"Her bracelet was made of silver.","example_zh":"她的手镯是银做的。"},
+  {"english":"Ring","phonetic":"/rɪŋ/","translation_zh":"戒指","example_en":"He gave her a diamond ring.","example_zh":"他给了她一枚钻戒。"},
+  {"english":"Belt","phonetic":"/belt/","translation_zh":"皮带","example_en":"My belt is made of leather.","example_zh":"我的皮带是皮革做的。"},
+  {"english":"Earrings","phonetic":"/ˈɪə.rɪŋz/","translation_zh":"耳环","example_en":"She wore gold earrings.","example_zh":"她戴了金耳环。"},
+  {"english":"Flip flops","phonetic":"/ˈflɪp.flɒps/","translation_zh":"人字拖","example_en":"I wore flip flops to the beach.","example_zh":"我穿着人字拖去海滩。"},
+  {"english":"Socks","phonetic":"/sɒks/","translation_zh":"袜子","example_en":"He wore warm wool socks.","example_zh":"他穿了暖和的羊毛袜。"}
+];
+
+    // === Deck helpers (dynamic) ===
+    const words = wordsAll;
+    function getAllIndices() { return words.map((_, i) => i); }
+    function totalTerms() { return words.length; }
+
+    // App state
+    let INITIAL_INDICES = getAllIndices();
+    let currentIndices = [...INITIAL_INDICES];
+    let practiceIndices = [];
+    let index = 0;
+    let practiceMode = false;
+    const startedAt = Date.now();
+
+    // Track first decision per card
+    const firstDecision = new Map(); // index -> 'know' | 'practice'
+
+    // ===== DOM =====
+    const cardEl = document.getElementById('card');
+    const frontWordEl = document.getElementById('frontWord');
+    const frontPhonEl = document.getElementById('frontPhon');
+    const backTransZhEl = document.getElementById('backTransZh');
+    const exEnEl = document.getElementById('exEn');
+    const exZhEl = document.getElementById('exZh');
+    const audioFrontEl = document.getElementById('audioFront');
+    const audioBackEl = document.getElementById('audioBack');
+    const congratsEl = document.getElementById('congratsMsg');
+    const reviewControlsEl = document.getElementById('reviewControls');
+    const congratsSummaryEl = document.getElementById('congratsSummary');
+    const siteTitleEl = document.getElementById('siteTitle');
+    const siteInstrEl = document.getElementById('siteInstr');
+
+    // Header
+    function refreshHeader() {
+      siteTitleEl.innerHTML = `教育部 - 出国人员培训部<br/>第3周 • 英→中 闪卡`;
+      siteInstrEl.innerHTML = `点击卡片以翻转。点击音频图标🔊可收听单词或句子。`;
+    }
+    refreshHeader();
+
+    function showCard() {
+      const w = words[currentIndices[index]];
+      frontWordEl.textContent = w.english;
+      frontPhonEl.textContent = w.phonetic;
+      backTransZhEl.textContent = w.translation_zh;
+      exEnEl.innerHTML = highlightWord(w.example_en, w.english);
+      exZhEl.textContent = w.example_zh;
+      cardEl.classList.remove('flipped');
+    }
+
+    // Highlighter
+    function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function highlightWord(sentence, word) {
+      const pattern = new RegExp(`\\b${esc(word)}\\b`, 'gi');
+      return sentence.replace(pattern, (m) => `<span class="highlight">${m}</span>`);
+    }
+
+    // Flip
+    cardEl.addEventListener('click', () => { cardEl.classList.toggle('flipped'); });
+
+    // Audio
+    const AUDIO_BASE = 'audio/';
+    function slugify(text) { return text.toLowerCase().replace(/[^a-z\s]/g, '').trim().replace(/\s+/g, '_'); }
+    function wordAudioName(english){ return slugify(english) + '.mp3'; }
+    function sentAudioName(english){ return slugify(english) + '_sen.mp3'; }
+    function audioUrl(name) { return AUDIO_BASE + name; }
+    function playWord() { const w = words[currentIndices[index]]; new Audio(audioUrl(wordAudioName(w.english))).play().catch(()=>{}); }
+    function playSentence() { const w = words[currentIndices[index]]; new Audio(audioUrl(sentAudioName(w.english))).play().catch(()=>{}); }
+    audioFrontEl.addEventListener('click', (e) => { e.stopPropagation(); playWord(); });
+    audioBackEl.addEventListener('click', (e) => { e.stopPropagation(); playSentence(); });
+
+    // Buttons
+    document.getElementById('knowBtn').addEventListener('click', () => { record('know'); nextCard(); });
+    document.getElementById('practiceBtn').addEventListener('click', () => { record('practice'); nextCard(); });
+
+    function record(action) {
+      const cardIdx = currentIndices[index];
+      if (!firstDecision.has(cardIdx)) firstDecision.set(cardIdx, action);
+      if (action === 'practice' && !practiceIndices.includes(cardIdx)) practiceIndices.push(cardIdx);
+    }
+
+    function nextCard() {
+      if (index < currentIndices.length - 1) {
+        index++;
+        showCard();
+      } else {
+        // finished current run
+        cardEl.classList.add('hidden');
+        if (!practiceMode && practiceIndices.length > 0) {
+          reviewControlsEl.classList.remove('hidden');
+        } else {
+          const s = computeSummary();
+          const elapsedMs = Date.now() - startedAt;
+          congratsSummaryEl.textContent = `掌握：${s.known}/${s.total} • 需练习：${s.practice}/${s.total} • 得分：${s.score}% • 用时：${formatDuration(elapsedMs)}`;
+          congratsEl.classList.remove('hidden');
+          document.body.classList.add('overlay-open'); // prevent card from intercepting clicks
+        }
+      }
+    }
+
+    document.getElementById('reviewPractice').addEventListener('click', () => {
+      practiceMode = true;
+      currentIndices = [...practiceIndices];
+      index = 0;
+      reviewControlsEl.classList.add('hidden');
+      congratsEl.classList.add('hidden');
+      document.body.classList.remove('overlay-open');
+      cardEl.classList.remove('hidden');
+      showCard();
+    });
+
+    document.getElementById('reviewAll').addEventListener('click', () => {
+      practiceMode = false;
+      INITIAL_INDICES = getAllIndices();
+      currentIndices = [...INITIAL_INDICES];
+      practiceIndices = [];
+      index = 0;
+      congratsEl.classList.add('hidden');
+      reviewControlsEl.classList.add('hidden');
+      document.body.classList.remove('overlay-open');
+      cardEl.classList.remove('hidden');
+      refreshHeader();
+      showCard();
+    });
+
+    document.getElementById('prevBtn').addEventListener('click', () => { if (index > 0) { index--; showCard(); } });
+    document.getElementById('nextBtn').addEventListener('click', () => nextCard());
+
+    function computeSummary() {
+      const total = totalTerms();
+      let known = 0;
+      getAllIndices().forEach(i => { if (firstDecision.get(i) === 'know') known++; });
+      const practice = total - known;
+      const score = Math.round((known / Math.max(total,1)) * 100);
+      return { known, practice, score, total };
+    }
+
+    // ===== 报告构建 + 用时 =====
+    function formatDuration(ms) {
+      let s = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(s / 3600); s -= h * 3600;
+      const m = Math.floor(s / 60); s -= m * 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+    }
+
+    function buildReport() {
+      const student = (document.getElementById('studentId').value || '').trim();
+      const finishedAt = new Date();
+      const started = new Date(startedAt);
+      const s = computeSummary();
+      const elapsedMs = Date.now() - startedAt;
+
+      const meta = [
+        `<div><strong>词库：</strong>第3周 • 英→中（共 ${s.total} 个词条）</div>`,
+        `<div><strong>学生：</strong> ${student || '（未填写）'}</div>`,
+        `<div><strong>开始时间：</strong> ${started.toLocaleString()}</div>`,
+        `<div><strong>结束时间：</strong> ${finishedAt.toLocaleString()}</div>`
+      ].join('');
+      document.getElementById('reportMeta').innerHTML = meta;
+
+      const st = document.getElementById('summaryTable');
+      st.innerHTML = `
+        <tr><th>总词数</th><td>${s.total}</td></tr>
+        <tr><th>已掌握</th><td>${s.known}</td></tr>
+        <tr><th>需要练习</th><td>${s.practice}</td></tr>
+        <tr><th>用时</th><td>${formatDuration(elapsedMs)}</td></tr>
+        <tr class="score-row"><th>得分</th><td>${s.score}%</td></tr>
+      `;
+    }
+
+    // ===== 直接用 Canvas 绘制 PNG（可靠，兼容移动端/桌面） =====
+    function drawReportToCanvas() {
+      const s = computeSummary();
+      const student = (document.getElementById('studentId').value || '').trim();
+      const finishedAt = new Date();
+      const started = new Date(startedAt);
+      const elapsedMs = Date.now() - startedAt;
+
+      const W = 900, P = 24, ROW_H = 36;
+
+      const tmp = document.createElement('canvas');
+      tmp.width = W; tmp.height = 1200;
+      const ctx = tmp.getContext('2d');
+      ctx.fillStyle = "#fff"; ctx.fillRect(0,0,tmp.width,tmp.height);
+
+      const titleFont = "bold 24px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const h2Font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const bodyFont = "14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const scoreFont = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+
+      function text(t, x, y, font, color="#111827") { ctx.font = font; ctx.fillStyle = color; ctx.fillText(t, x, y); }
+      function line(x1,y1,x2,y2, color="#e5e7eb") { ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+      function measure(t, font) { ctx.font = font; return ctx.measureText(t).width; }
+
+      let y = P;
+
+      text("学习表现报告", P, y+24, titleFont); y += 24 + 8;
+
+      const metaLines = [
+        `词库：第3周 • 英→中（共 ${s.total} 个词条）`,
+        `学生：${student || '（未填写）'}`,
+        `开始时间：${started.toLocaleString()}`,
+        `结束时间：${finishedAt.toLocaleString()}`
+      ];
+      metaLines.forEach(l => { text(l, P, y+16, bodyFont, "#374151"); y += 18; });
+
+      y += 12;
+      text("摘要", P, y+18, h2Font); y += 18 + 8;
+
+      const rows = [
+        ["总词数", String(s.total)],
+        ["已掌握", String(s.known)],
+        ["需要练习", String(s.practice)],
+        ["用时", formatDuration(elapsedMs)],
+        ["得分", `${s.score}%`]
+      ];
+      const col1w = Math.max(...rows.map(r => measure(r[0], bodyFont))) + 24;
+      const tableX = P, tableW = W - P*2, col2x = tableX + col1w;
+
+      // top border
+      line(tableX, y, tableX + tableW, y);
+      rows.forEach((r, i) => {
+        const isScore = i === rows.length - 1;
+        const font = isScore ? scoreFont : bodyFont;
+        const color = isScore ? "#0f766e" : "#111827";
+
+        line(tableX, y, tableX, y + ROW_H);
+        line(col2x, y, col2x, y + ROW_H);
+        line(tableX + tableW, y, tableX + tableW, y + ROW_H);
+
+        text(r[0], tableX + 8, y + 23, font, color);
+        text(r[1], col2x + 8, y + 23, font, color);
+
+        line(tableX, y + ROW_H, tableX + tableW, y + ROW_H);
+        y += ROW_H;
+      });
+
+      const H = y + P;
+      const out = document.createElement('canvas');
+      out.width = W; out.height = H;
+      const octx = out.getContext('2d');
+      octx.fillStyle = "#fff"; octx.fillRect(0,0,W,H);
+      octx.drawImage(tmp, 0, 0);
+      return out;
+    }
+
+    async function saveReportAsImage() {
+      buildReport();
+      const canvas = drawReportToCanvas();
+      const dataUrl = canvas.toDataURL('image/png');
+
+      try {
+        if (navigator.canShare && typeof navigator.canShare === 'function') {
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          const file = new File([blob], '学习表现报告.png', { type: 'image/png' });
+          if (navigator.canShare({ files: [file] }) && navigator.share) {
+            await navigator.share({ files: [file], title: '学习表现报告' });
+            return;
+          }
+        }
+      } catch (_) { /* ignore and fallback */ }
+
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = '学习表现报告.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => {
+        if (!document.hidden) {
+          const w = window.open(dataUrl, '_blank');
+          if (w) w.focus();
+        }
+      }, 300);
+    }
+
+    document.getElementById('saveImgBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveReportAsImage();
+    });
+
+    // 初始化：载入首张
+    showCard();
+  </script>
+
+<script>
+// Safely move the 复习“需要练习” button above the arrow nav without touching functionality.
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    var nav = document.querySelector('.nav');
+    var review = document.getElementById('reviewControls');
+    if (nav && review && nav.parentNode) {
+      nav.parentNode.insertBefore(review, nav);
+    }
+  } catch (e) {
+    console.error('Reorder failed:', e);
+  }
+});
+</script>
+</body>
+</html>
